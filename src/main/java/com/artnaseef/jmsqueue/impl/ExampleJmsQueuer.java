@@ -31,6 +31,8 @@ public class ExampleJmsQueuer implements JmsQueuer {
       this.messageSender = new JmsMessageSender();
     }
 
+    this.messageSender.setMessageSupplier(this::dequeue);
+
     // TODO: prevent more than one from being started.
     new Thread(this.messageSender).start();
   }
@@ -39,9 +41,32 @@ public class ExampleJmsQueuer implements JmsQueuer {
     synchronized(this.messageQueue) {
       if (this.messageQueue.size() < this.maxMessagesQueued) {
         this.messageQueue.add(msg);
+        this.messageQueue.notifyAll();
       } else {
         // TODO: log, report!
       }
     }
+  }
+
+  private Message dequeue() {
+    Message result = null;
+
+    while (result == null) {
+      synchronized (this.messageQueue) {
+        result = this.messageQueue.poll();
+
+        if (result == null) {
+          try {
+            this.messageQueue.wait();
+          } catch (InterruptedException e) {
+            // TODO - error handling case
+            e.printStackTrace();
+          }
+        }
+
+      }
+    }
+
+    return result;
   }
 }
